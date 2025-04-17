@@ -127,6 +127,7 @@ app.get('/api/attendance/history', (req, res) => {
     console.log('收到获取历史记录请求');
     const query = `
         SELECT 
+            id,
             date,
             time,
             dormitory_number,
@@ -184,14 +185,17 @@ app.post('/api/attendance/delete', (req, res) => {
         return res.status(400).json({ error: '没有选择要删除的记录' });
     }
 
+    console.log('准备删除的记录 IDs:', ids);
+
     const placeholders = ids.map(() => '?').join(',');
     const query = `DELETE FROM attendance_records WHERE id IN (${placeholders})`;
     
     db.run(query, ids, function(err) {
         if (err) {
             console.error('删除记录失败:', err);
-            return res.status(500).json({ error: '删除记录失败' });
+            return res.status(500).json({ error: '删除记录失败: ' + err.message });
         }
+        console.log(`成功删除 ${this.changes} 条记录`);
         res.json({ 
             success: true, 
             message: `成功删除 ${this.changes} 条记录`,
