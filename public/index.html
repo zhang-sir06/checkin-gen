@@ -380,6 +380,7 @@
                         <th>寝室</th>
                         <th>姓名</th>
                         <th>班级</th>
+                        <th>教师</th>
                         <th>状态</th>
                     </tr>
                 </thead>
@@ -626,6 +627,7 @@
                         <td>${record.dormitory_number}</td>
                         <td>${record.member_name}</td>
                         <td>${record.class_name}</td>
+                        <td>${record.teacher_name}</td>
                         <td class="status-${record.status}">${getStatusText(record.status)}</td>
                     `;
                     historyBody.appendChild(row);
@@ -639,6 +641,7 @@
             } finally {
                 hideLoading();
             }
+            console.log('接收到的历史记录数据:', data.records);
         }
         function updatePaginationControls() {
             const prevButton = document.getElementById('prev-page');
@@ -667,6 +670,7 @@
                     <td>${record.dormitory_number}</td>
                     <td>${record.member_name}</td>
                     <td>${record.class_name}</td>
+                    <td>${record.teacher_name}</td>
                     <td class="status-${record.status}">${getStatusText(record.status)}</td>
                 `;
                 historyBody.appendChild(row);

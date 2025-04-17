@@ -12,12 +12,19 @@ app.use(express.json());
 // 连接数据库
 const db = new sqlite3.Database('./class_data.db', (err) => {
     if (err) {
-        console.error('数据库连接失败:', err);
+        console.error('主数据库连接失败:', err);
         process.exit(1);
     }
-    console.log('成功连接到数据库');
+    console.log('成功连接到主数据库');
 });
 
+const teacherDb = new sqlite3.Database('./teacher_data.db', (err) => {
+    if (err) {
+        console.error('教师数据库连接失败:', err);
+        process.exit(1);
+    }
+    console.log('成功连接到教师数据库');
+});
 // 处理正常关闭
 process.on('SIGINT', () => {
     db.close((err) => {
@@ -140,34 +147,56 @@ app.get('/api/attendance/history', (req, res) => {
         
         const total = row.total;
         
-        // 然后获取当前页的数据
-        const query = `
-            SELECT 
-                id,
-                date,
-                time,
-                dormitory_number,
-                member_name,
-                class_name,
-                status
-            FROM attendance_records
-            ORDER BY date DESC, time DESC
-            LIMIT ? OFFSET ?
-        `;
-        
-        db.all(query, [pageSize, offset], (err, rows) => {
+        // 获取教师信息
+        teacherDb.all('SELECT class_name, teacher_name FROM teacher_data', [], (err, teachers) => {
             if (err) {
-                console.error('获取历史记录失败:', err);
+                console.error('获取教师信息失败:', err);
                 res.status(500).json({ error: err.message });
                 return;
             }
-            
-            res.json({
-                total: total,
-                currentPage: page,
-                pageSize: pageSize,
-                totalPages: Math.ceil(total / pageSize),
-                records: rows
+            // 创建班级与教师的映射
+            const teacherMap = {};
+            teachers.forEach(teacher => {
+                teacherMap[teacher.class_name] = teacher.teacher_name;
+            });
+
+            // 然后获取当前页的数据
+            const query = `
+                SELECT 
+                    id,
+                    date,
+                    time,
+                    dormitory_number,
+                    member_name,
+                    class_name,
+                    status
+                FROM attendance_records
+                ORDER BY date DESC, time DESC
+                LIMIT ? OFFSET ?
+            `;
+        
+            db.all(query, [pageSize, offset], (err, rows) => {
+                if (err) {
+                    console.error('获取历史记录失败:', err);
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+
+                // 为每条记录添加教师信息
+                const records = rows.map(record => ({
+                    ...record,
+                    teacher_name: teacherMap[record.class_name] || '未知'
+                }));
+                 
+                res.json({
+                    total: total,
+                    currentPage: page,
+                    pageSize: pageSize,
+                    totalPages: Math.ceil(total / pageSize),
+                    records: records
+                });
+                console.log('返回的历史记录数据:', records);
+
             });
         });
     });
