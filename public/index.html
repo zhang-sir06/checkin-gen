@@ -294,6 +294,27 @@
                 width: 100%;
             }
         }
+        .pagination {
+          margin-top: 20px;
+          text-align: center;
+        }
+        
+        .page-btn {
+          padding: 5px 15px;
+          margin: 0 10px;
+          border: 1px solid #ddd;
+          background-color: #fff;
+          cursor: pointer;
+        }
+        
+        .page-btn:disabled {
+          background-color: #f5f5f5;
+          cursor: not-allowed;
+        }
+        
+        #page-info {
+          margin: 0 15px;
+        }
     </style>
 </head>
 
@@ -365,11 +386,22 @@
                 <tbody id="history-body"></tbody>
             </table>
         </div>
+        <!-- 分页控制 -->
+        <div class="pagination-controls">
+          <div class="pagination">
+            <button id="prev-page" class="page-btn">上一页</button>
+            <span id="page-info">第 1 页 / 共 1 页</span>
+            <button id="next-page" class="page-btn">下一页</button>
+          </div>
+        </div>
     </div>
 
 
     <script>
         const attendanceStatus = {};
+        let currentPage = 1;
+        let totalPages = 1;
+        const pageSize = 50;
         const loading = document.getElementById('loading');
         const errorMessage = document.getElementById('error-message');
         const submitBtn = document.getElementById('submit-btn');
@@ -526,20 +558,38 @@
             }
         }
 
-        async function loadAttendanceHistory() {
+        async function loadAttendanceHistory(page = 1) {
             showLoading();
             try {
                 const dormitoryFilter = document.getElementById('history-dormitory-filter').value;
                 const statusFilter = document.getElementById('history-status-filter').value;
                 const dateFilter = document.getElementById('history-date-filter').value;
+                //打印日志
+                console.log(`/api/attendance/history?page=${page}&pageSize=${pageSize}`);
+                //
 
-                const response = await fetch('/api/attendance/history');
+                const response = await fetch(`/api/attendance/history?page=${page}&pageSize=${pageSize}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                let records = await response.json();
+
+                const data = await response.json();
+                // 打印返回的历史记录数据
+                console.log('收到的历史记录数据:', data);
+
+                // 检查是否有记录返回
+                if (!data.records || data.records.length === 0) {
+                    console.log('没有历史记录');
+                    showError('没有找到历史记录');
+                    return;
+                }
+                // 更新分页信息
+                currentPage = data.currentPage;
+                totalPages = data.totalPages;
+                updatePaginationControls();
 
                 // 应用过滤器
+                let records = data.records;
                 if (dormitoryFilter) {
                     records = records.filter(r => r.dormitory_number === dormitoryFilter);
                 }
@@ -552,6 +602,9 @@
 
                 // 更新统计信息
                 updateStatistics(records);
+                // 更新表格和统计
+                updateHistoryTable(records);
+                updateStatusCounts(records);
 
                 // 清空选择
                 selectedRecords.clear();
@@ -587,7 +640,57 @@
                 hideLoading();
             }
         }
+        function updatePaginationControls() {
+            const prevButton = document.getElementById('prev-page');
+            const nextButton = document.getElementById('next-page');
+            const pageInfo = document.getElementById('page-info');
+
+            prevButton.disabled = currentPage <= 1;
+            nextButton.disabled = currentPage >= totalPages;
+
+            pageInfo.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+        }
+        function updateHistoryTable(records) {
+            const historyBody = document.getElementById('history-body');
+            historyBody.innerHTML = '';
+
+            records.forEach(record => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="checkbox-column">
+                        <input type="checkbox" class="record-checkbox custom-checkbox" 
+                               value="${record.id}" 
+                               onchange="handleCheckboxChange(this)">
+                    </td>
+                    <td>${record.date}</td>
+                    <td>${record.time}</td>
+                    <td>${record.dormitory_number}</td>
+                    <td>${record.member_name}</td>
+                    <td>${record.class_name}</td>
+                    <td class="status-${record.status}">${getStatusText(record.status)}</td>
+                `;
+                historyBody.appendChild(row);
+            });
+
+            // 重置全选框
+            document.getElementById('select-all').checked = false;
+        }
+        // 在 updateHistoryTable 函数后添加：
         function updateStatistics(records) {
+            const totalCount = records.length;
+            const onTimeCount = records.filter(r => r.status === 'on-time').length;
+            const absentCount = records.filter(r => r.status === 'absent').length;
+            const leaveCount = records.filter(r => r.status === 'leave').length;
+    
+            document.getElementById('total-count').textContent = totalCount;
+            document.getElementById('on-time-count').textContent = onTimeCount;
+            document.getElementById('absent-count').textContent = absentCount;
+            document.getElementById('leave-count').textContent = leaveCount;
+        }
+
+
+
+        function updateStatusCounts(records) {
             const totalCount = records.length;
             const onTimeCount = records.filter(r => r.status === 'on-time').length;
             const absentCount = records.filter(r => r.status === 'absent').length;
@@ -657,7 +760,26 @@
             loadDormitories();
             initializeHistoryFilters();
             document.getElementById('dormitory-select').addEventListener('change', showDormitoryMembers);
+            
+            // 添加分页按钮事件监听
+            document.getElementById('prev-page')?.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    loadAttendanceHistory(currentPage - 1);
+                }
+            });
+            document.getElementById('next-page')?.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    loadAttendanceHistory(currentPage + 1);
+                }
+            });
+            // 添加刷新按钮事件监听
+            document.querySelector('.history-controls')?.addEventListener('click', (e) => {
+                if (e.target.textContent.trim() === '刷新') {
+                    loadHistoryRecords(currentPage);
+                }
+            });
         });
+
         let selectedRecords = new Set();
 
         function toggleSelectAll() {

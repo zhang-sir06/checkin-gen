@@ -124,30 +124,55 @@ app.post('/api/attendance', (req, res) => {
 });
 
 app.get('/api/attendance/history', (req, res) => {
-    console.log('收到获取历史记录请求');
-    const query = `
-        SELECT 
-            id,
-            date,
-            time,
-            dormitory_number,
-            member_name,
-            class_name,
-            status
-        FROM attendance_records
-        ORDER BY date DESC, time DESC
-        LIMIT 100
-    `;
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 50;
+    const offset = (page - 1) * pageSize;
     
-    db.all(query, [], (err, rows) => {
+    console.log(`收到获取历史记录请求: 页码=${page}, 每页记录数=${pageSize}`);
+    
+    // 首先获取总记录数
+    db.get('SELECT COUNT(*) as total FROM attendance_records', [], (err, row) => {
         if (err) {
-            console.error('获取历史记录失败:', err);
+            console.error('获取记录总数失败:', err);
             res.status(500).json({ error: err.message });
             return;
         }
-        res.json(rows);
+        
+        const total = row.total;
+        
+        // 然后获取当前页的数据
+        const query = `
+            SELECT 
+                id,
+                date,
+                time,
+                dormitory_number,
+                member_name,
+                class_name,
+                status
+            FROM attendance_records
+            ORDER BY date DESC, time DESC
+            LIMIT ? OFFSET ?
+        `;
+        
+        db.all(query, [pageSize, offset], (err, rows) => {
+            if (err) {
+                console.error('获取历史记录失败:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
+            res.json({
+                total: total,
+                currentPage: page,
+                pageSize: pageSize,
+                totalPages: Math.ceil(total / pageSize),
+                records: rows
+            });
+        });
     });
 });
+
 
 // 错误处理中间件
 app.use((err, req, res, next) => {
