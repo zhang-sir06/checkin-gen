@@ -257,3 +257,88 @@ app.post('/api/attendance/delete', (req, res) => {
         });
     });
 });
+
+app.get('/api/attendance/export', (req, res) => {
+    const date = req.query.date;
+    const status = req.query.status;
+    const dormitory = req.query.dormitory;
+
+    console.log(`收到导出记录请求: 日期=${date}, 状态=${status}, 寝室=${dormitory}`);
+
+    // 获取教师信息
+    teacherDb.all('SELECT class_name, teacher_name FROM teacher_data', [], (err, teachers) => {
+        if (err) {
+            console.error('获取教师信息失败:', err);
+            res.status(500).json({ error: err.message });
+            return;
+        }
+
+        // 创建班级与教师的映射
+        const teacherMap = {};
+        teachers.forEach(teacher => {
+            teacherMap[teacher.class_name] = teacher.teacher_name;
+        });
+
+        // 构建查询条件
+        let query = `
+            SELECT 
+                id,
+                date,
+                time,
+                dormitory_number,
+                member_name,
+                class_name,
+                status
+            FROM attendance_records
+            WHERE date = ? AND status = ?
+        `;
+        let params = [date, status];
+
+        if (dormitory) {
+            query += ' AND dormitory_number = ?';
+            params.push(dormitory);
+        }
+
+        query += ' ORDER BY date DESC, time DESC';
+
+        db.all(query, params, (err, rows) => {
+            if (err) {
+                console.error('获取记录失败:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+
+            // 为每条记录添加教师信息
+            const records = rows.map(record => ({
+                teacher_name: teacherMap[record.class_name] || '未知',
+                member_name: record.member_name,
+                class_name: record.class_name,
+                date: record.date,
+                time: record.time,
+                status: record.status
+            }));
+
+            // 生成CSV文件内容
+            const headers = ['teacher_name', 'member_name', 'class_name', 'date', 'time', 'status'];
+            const csvContent = [headers.join(',')].concat(
+                records.map(record => [
+                    record.teacher_name,
+                    record.member_name,
+                    record.class_name,
+                    record.date,
+                    record.time,
+                    record.status
+                ].map(field => `"${field}"`).join(','))
+            ).join('\n');
+
+            // 添加UTF-8 BOM
+            const bom = '\uFEFF';
+            const finalContent = bom + csvContent;
+
+            // 设置响应头
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', 'attachment; filename=attendance_records.csv');
+            res.send(finalContent);
+        });
+    });
+});

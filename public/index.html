@@ -324,6 +324,7 @@
     <div class="tabs">
         <div class="tab active" onclick="switchTab('attendance')">签到</div>
         <div class="tab" onclick="switchTab('history')">历史记录</div>
+        <div class="tab" onclick="switchTab('export')">导出记录</div>
     </div>
 
     <!-- 签到部分 -->
@@ -354,6 +355,7 @@
             <input type="date" id="history-date-filter">
             <button onclick="loadAttendanceHistory()" class="refresh-button">刷新</button>
         </div>
+
 
         <div class="status-count">
             <div class="count-item">总人数：<span id="total-count">0</span></div>
@@ -394,6 +396,23 @@
             <span id="page-info">第 1 页 / 共 1 页</span>
             <button id="next-page" class="page-btn">下一页</button>
           </div>
+        </div>
+    </div>
+
+    <!-- 导出记录部分 -->
+    <div id="export-section" class="history-section">
+        <div class="history-controls">
+            <select id="export-dormitory-filter">
+                <option value="">所有寝室</option>
+            </select>
+            <select id="export-status-filter">
+                <option value="">所有状态</option>
+                <option value="on-time">正常</option>
+                <option value="absent">未到</option>
+                <option value="leave">请假</option>
+            </select>
+            <input type="date" id="export-date-filter">
+            <button onclick="exportRecords()" class="submit-button">导出记录</button>
         </div>
     </div>
 
@@ -845,6 +864,62 @@
                 console.error('删除记录失败:', error);
                 alert('删除记录失败，请重试');
             }
+        }
+
+        function switchTab(tabName) {
+            // 更新标签样式
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+
+            // 更新内容显示
+            document.querySelectorAll('.attendance-section, .history-section, #export-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(`${tabName}-section`).classList.add('active');
+
+            // 如果切换到历史记录或导出记录标签，刷新数据
+            if (tabName === 'history') {
+                loadAttendanceHistory();
+            } else if (tabName === 'export') {
+                initializeExportFilters();
+            }
+        }
+        function initializeExportFilters() {
+            try {
+                const response = fetch('/api/dormitories');
+                if (!response.ok) throw new Error('Failed to fetch dormitories');
+                const data = response.json();
+                
+                const exportDormitoryFilter = document.getElementById('export-dormitory-filter');
+                data.forEach(dorm => {
+                    const option = document.createElement('option');
+                    option.value = dorm.dormitory_number;
+                    option.textContent = dorm.dormitory_number;
+                    exportDormitoryFilter.appendChild(option);
+                });
+            } catch (error) {
+                console.error('初始化导出过滤器失败:', error);
+            }
+        }
+        async function exportRecords() {
+            const dormitoryFilter = document.getElementById('export-dormitory-filter').value;
+            const statusFilter = document.getElementById('export-status-filter').value;
+            const dateFilter = document.getElementById('export-date-filter').value;
+
+            if (!dateFilter) {
+                showError('请选择日期！');
+                return;
+            }
+
+            if (!statusFilter) {
+                showError('请选择状态！');
+                return;
+            }
+
+            const url = `/api/attendance/export?date=${encodeURIComponent(dateFilter)}&status=${encodeURIComponent(statusFilter)}&dormitory=${encodeURIComponent(dormitoryFilter)}`;
+            window.location.href = url;
         }
 
     </script>
