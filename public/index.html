@@ -384,6 +384,73 @@ http://mozilla.org/MPL/2.0/。
             box-shadow: 0 2px 6px rgba(87, 195, 194, 0.3);
         }
 
+        /* 状态按钮容器 */
+        .status-options {
+            display: flex;
+            gap: 10px; /* 按钮之间的间距 */
+            margin-top: 15px; /* 与上方元素的间距 */
+            justify-content: center; /* 按钮居中 */
+        }
+
+        /* 状态按钮通用样式 */
+        .status-option {
+            padding: 10px 15px;
+            border: 1.5px solid; /* 边框默认由具体状态类定义颜色 */
+            border-radius: 20px; /* 圆角 */
+            cursor: pointer;
+            font-size: 14px;
+            transition: transform 0.6s ease, all 0.6s ease; /* 平滑过渡动画 */
+            display: inline-flex; /* 让 checkmark 能在同一行 */
+            align-items: center;
+        }
+
+        /* 隐藏默认的 checkmark */
+        .status-option .checkmark {
+            display: none;
+            margin-left: 5px; /* 对勾和文字的间距 */
+        }
+
+        /* 状态按钮激活 (选中) 时的样式 */
+        .status-option.active {
+            padding: 10px 15px;
+            color: white !important; 
+            transform: scale(1.04);/* 选中时文字变白 */
+            /* 背景色和边框色由具体状态类定义 */
+        }
+
+        /* 激活时显示 checkmark */
+        .status-option.active .checkmark {
+            display: inline;
+        }
+
+        /* 定义各种状态的颜色 (默认状态：边框和文字颜色) */
+        .status-option.status-on-time {
+            border-color: #7bcfd6;
+            color: #7bcfd6;
+        }
+        .status-option.status-absent {
+            border-color: #f44336;
+            color: #f44336;
+        }
+        .status-option.status-leave {
+            border-color: #ff9800;
+            color: #ff9800;
+        }
+
+        /* 定义各种状态的颜色 (激活状态：背景色和边框色) */
+        .status-option.status-on-time.active {
+            background-color:rgba(123,207,214,1);
+            border-color: rgba(123,207,214,1);
+        }
+        .status-option.status-absent.active {
+            background-color: rgba(244,67,54,0.9);
+            border-color: rgba(244,67,54,1);
+        }
+        .status-option.status-leave.active {
+            background-color: rgba(255,152,0,0.7);
+            border-color: rgba(255,152,0,1);
+        }
+
     </style>
 </head>
 
@@ -623,6 +690,8 @@ http://mozilla.org/MPL/2.0/。
             submitBtn.style.display = 'none'; // 隐藏提交按钮
             
             showLoading();
+            hideError(); // 清除之前的错误信息
+
             try {
                 // 获取寝室成员数据
                 const response = await fetch(`/api/members/${encodeURIComponent(dormNumber)}`);
@@ -641,14 +710,38 @@ http://mozilla.org/MPL/2.0/。
                     memberCard.innerHTML = `
                         <h2>${member.member_name}</h2>
                         <div class="class-name">${member.class_name}</div>
-                        <select class="status-select" onchange="updateStatus(${member.id}, this.value)">
-                            <option value="on-time">正常</option>
-                            <option value="absent">未到</option>
-                            <option value="leave">请假</option>
-                        </select>
+                        <div class="status-options" data-member-id="${member.id}">
+                            <div class="status-option status-on-time active" data-status="on-time">
+                                正常 <span class="checkmark"> ✓</span>
+                            </div>
+                            <div class="status-option status-absent" data-status="absent">
+                                未到 <span class="checkmark"> ✓</span>
+                            </div>
+                            <div class="status-option status-leave" data-status="leave">
+                                请假 <span class="checkmark"> ✓</span>
+                            </div>
+                        </div>
                     `;
                     memberListDiv.appendChild(memberCard);
                     attendanceStatus[member.id] = 'on-time'; // 初始化状态
+                    
+                    const statusOptionsContainer = memberCard.querySelector('.status-options');
+                    statusOptionsContainer.addEventListener('click', (event) => {
+                        const clickedOption = event.target.closest('.status-option');
+                        if (!clickedOption) return; // 没有点中按钮区域
+
+                        const memberId = statusOptionsContainer.dataset.memberId;
+                        const newStatus = clickedOption.dataset.status;
+
+                        // 更新 JS 状态变量
+                        updateStatus(memberId, newStatus);
+
+                        // 更新按钮视觉状态
+                        const allOptions = statusOptionsContainer.querySelectorAll('.status-option');
+                        allOptions.forEach(option => option.classList.remove('active'));
+                        clickedOption.classList.add('active');
+                    });
+
                 });
                 
                 submitBtn.style.display = 'block'; // 显示提交按钮
