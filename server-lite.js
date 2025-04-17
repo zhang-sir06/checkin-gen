@@ -19,6 +19,7 @@ console.log('开始启动服务器...');
 
 // 配置静态文件服务和JSON解析
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/icon', express.static(path.join(__dirname, 'public/icon')));
 app.use(express.json());
 
 // 连接数据库
