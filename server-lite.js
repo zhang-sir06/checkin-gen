@@ -1,7 +1,19 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * 本源代码形式受 Mozilla 公共许可证 2.0 版本的约束。
+ * 如果本文件未随附该许可证的副本，您可以在以下网址获取：
+ * http://mozilla.org/MPL/2.0/。
+ */
+
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
+const { exec } = require('child_process');
 const path = require('path');
 const app = express();
+const fs = require('fs'); // 引入文件系统模块
+
 
 console.log('开始启动服务器...');
 
@@ -290,9 +302,9 @@ app.get('/api/attendance/export', (req, res) => {
                 class_name,
                 status
             FROM attendance_records
-            WHERE date = ? AND status = ?
+            WHERE date = ? AND status IN (${status.split(',').map(() => '?').join(',')})
         `;
-        let params = [date, status];
+        let params = [date, ...status.split(',')];
 
         if (dormitory) {
             query += ' AND dormitory_number = ?';
@@ -335,10 +347,49 @@ app.get('/api/attendance/export', (req, res) => {
             const bom = '\uFEFF';
             const finalContent = bom + csvContent;
 
-            // 设置响应头
-            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader('Content-Disposition', 'attachment; filename=attendance_records.csv');
-            res.send(finalContent);
+            // 定义文件保存路径
+            const exportDir = path.join(__dirname, 'file'); // 根目录下的 file 文件夹
+            const filename = `attendance_records.csv`;
+            const filePath = path.join(exportDir, filename);
+
+            // 确保文件夹存在
+            if (!fs.existsSync(exportDir)) {
+                fs.mkdirSync(exportDir, { recursive: true }); // 确保多级目录创建
+            }
+
+            // 将文件写入指定路径
+            fs.writeFile(filePath, finalContent, (writeErr) => {
+                if (writeErr) {
+                    console.error('写入文件失败:', writeErr);
+                    res.status(500).json({ error: '文件保存失败' });
+                    return;
+                }
+
+                console.log(`文件已成功保存到 ${filePath}`);
+                res.json({ success: true, message: `文件已保存到 ${filePath}` });
+            });
+
+
         });
+    });
+});
+
+//运行 main.py 脚本
+app.post('/api/generate-word', (req, res) => {
+    console.log('收到生成 Word 文件的请求');
+
+    // 获取 main.py 的绝对路径
+    const pythonPath = path.join(__dirname, 'file', 'main.py');
+
+    // 指定工作目录为 main.py 所在的目录
+    const cwd = path.dirname(pythonPath);
+
+    exec(`python ${pythonPath}`, (error, stdout, stderr) => {
+        if (error) {
+            console.error('运行 main.py 时出错:', error);
+            return res.status(500).json({ success: false, message: `运行失败: ${stderr}` });
+        }
+        console.log('main.py 运行成功:', stdout);
+        res.json({ success: true, message: 'Word 文件生成成功！' });
     });
 });

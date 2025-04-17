@@ -1,4 +1,13 @@
 <!DOCTYPE html>
+<!--
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+本源代码形式受 Mozilla 公共许可证 2.0 版本的约束。
+如果本文件未随附该许可证的副本，您可以在以下网址获取：
+http://mozilla.org/MPL/2.0/。
+-->
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -325,6 +334,7 @@
         <div class="tab active" onclick="switchTab('attendance')">签到</div>
         <div class="tab" onclick="switchTab('history')">历史记录</div>
         <div class="tab" onclick="switchTab('export')">导出记录</div>
+        <div class="tab" onclick="switchTab('generate')">生成Word文件</div>
     </div>
 
     <!-- 签到部分 -->
@@ -405,13 +415,11 @@
             <select id="export-dormitory-filter">
                 <option value="">所有寝室</option>
             </select>
-            <select id="export-status-filter">
-                <option value="">所有状态</option>
-                <option value="on-time">正常</option>
-                <option value="absent">未到</option>
-                <option value="leave">请假</option>
-            </select>
             <input type="date" id="export-date-filter">
+            <div>
+                <label><input type="checkbox" value="absent" name="export-status-filter"> 未到</label>
+                <label><input type="checkbox" value="leave" name="export-status-filter"> 请假</label>
+            </div>
             <button onclick="exportRecords()" class="submit-button">导出记录</button>
         </div>
     </div>
@@ -698,7 +706,7 @@
             // 重置全选框
             document.getElementById('select-all').checked = false;
         }
-        // 在 updateHistoryTable 函数后添加：
+        // 
         function updateStatistics(records) {
             const totalCount = records.length;
             const onTimeCount = records.filter(r => r.status === 'on-time').length;
@@ -759,25 +767,6 @@
             }
         }
 
-        // 添加新的函数
-        function switchTab(tabName) {
-            // 更新标签样式
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
-
-            // 更新内容显示
-            document.querySelectorAll('.attendance-section, .history-section').forEach(section => {
-                section.classList.remove('active');
-            });
-            document.getElementById(`${tabName}-section`).classList.add('active');
-
-            // 如果切换到历史记录标签，刷新历史记录
-            if (tabName === 'history') {
-                loadAttendanceHistory();
-            }
-        }
         // 更新页面初始化
         document.addEventListener('DOMContentLoaded', () => {
             loadDormitories();
@@ -873,19 +862,46 @@
             });
             document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
 
-            // 更新内容显示
-            document.querySelectorAll('.attendance-section, .history-section, #export-section').forEach(section => {
-                section.classList.remove('active');
-            });
-            document.getElementById(`${tabName}-section`).classList.add('active');
+            // 根据标签名称执行不同的操作
+            switch (tabName) {
 
-            // 如果切换到历史记录或导出记录标签，刷新数据
-            if (tabName === 'history') {
+            case 'attendance':
+                // 切换到签到页面
+                document.querySelectorAll('.attendance-section, .history-section, #export-section').forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.getElementById('attendance-section').classList.add('active');
+                break;
+
+            case 'history':
+                // 切换到历史记录页面
+                document.querySelectorAll('.attendance-section, .history-section, #export-section').forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.getElementById('history-section').classList.add('active');
                 loadAttendanceHistory();
-            } else if (tabName === 'export') {
+                break;
+
+            case 'export':
+                // 切换到导出记录页面
+                document.querySelectorAll('.attendance-section, .history-section, #export-section').forEach(section => {
+                    section.classList.remove('active');
+                });
+                document.getElementById('export-section').classList.add('active');
                 initializeExportFilters();
+                break;
+
+            case 'generate':
+                // 生成Word文件，不切换页面内容
+                generateWord();
+                break;
+
+            default:
+                // 处理其他情况，比如无效的 tabName
+                console.warn(`Invalid tabName: ${tabName}`);
             }
         }
+        
         function initializeExportFilters() {
             try {
                 const response = fetch('/api/dormitories');
@@ -905,7 +921,7 @@
         }
         async function exportRecords() {
             const dormitoryFilter = document.getElementById('export-dormitory-filter').value;
-            const statusFilter = document.getElementById('export-status-filter').value;
+            const statusCheckboxes = document.querySelectorAll('input[name="export-status-filter"]:checked');
             const dateFilter = document.getElementById('export-date-filter').value;
 
             if (!dateFilter) {
@@ -913,14 +929,64 @@
                 return;
             }
 
-            if (!statusFilter) {
-                showError('请选择状态！');
+            // 获取选中的状态值
+            const selectedStatus = Array.from(statusCheckboxes).map(checkbox => checkbox.value);
+            if (selectedStatus.length === 0) {
+                showError('请选择至少一个状态！');
                 return;
             }
 
-            const url = `/api/attendance/export?date=${encodeURIComponent(dateFilter)}&status=${encodeURIComponent(statusFilter)}&dormitory=${encodeURIComponent(dormitoryFilter)}`;
-            window.location.href = url;
+            // 将状态数组转换为逗号分隔的字符串
+            const statusQuery = selectedStatus.join(',');
+            
+            // 显示加载提示
+            showLoading();
+
+            try {
+                // 使用 fetch 调用导出接口
+                const response = await fetch(`/api/attendance/export?date=${encodeURIComponent(dateFilter)}&status=${encodeURIComponent(statusQuery)}&dormitory=${encodeURIComponent(dormitoryFilter)}`);
+                if (!response.ok) {
+                    throw new Error('导出失败');
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    // 导出成功，提示用户文件已保存
+                    alert(result.message); // 提示用户文件已保存
+                } else {
+                    // 导出失败，显示错误信息
+                    showError(result.error || '导出失败，请重试');
+                }
+            } catch (error) {
+                console.error('导出记录失败:', error);
+                showError('导出记录失败，请重试');
+            } finally {
+                hideLoading();
+            }
         }
+
+        function generateWord() {
+            fetch('/api/generate-word', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({}) // 如果需要传递参数，可以在这里添加
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message); // 提示用户文件生成成功
+                } else {
+                    alert(data.message); // 提示用户生成失败的原因
+                }
+            })
+            .catch(error => {
+                console.error('生成 Word 文件失败:', error);
+                alert('生成 Word 文件失败，请稍后再试');
+            });
+        }
+        
 
     </script>
 </body>

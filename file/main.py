@@ -1,3 +1,13 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * 本源代码形式受 Mozilla 公共许可证 2.0 版本的约束。
+ * 如果本文件未随附该许可证的副本，您可以在以下网址获取：
+ * http://mozilla.org/MPL/2.0/。
+ */
+
+import os
 import pandas as pd
 from docx import Document
 from docx.shared import RGBColor
@@ -6,9 +16,15 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.shared import Pt
 from docx.oxml.ns import qn
 
-# 读取 CSV 文件
-def read_csv(file_path):
-    return pd.read_csv(file_path, encoding='utf-8-sig')
+script_dir = os.path.dirname(__file__)
+csv_file_path = os.path.join(script_dir, 'attendance_records.csv')
+
+# 检查文件是否存在
+if not os.path.exists(csv_file_path):
+    raise FileNotFoundError(f"文件不存在: {csv_file_path}")
+
+# 读取文件
+df = pd.read_csv(csv_file_path, encoding='utf-8-sig')
 
 # 找出不在寝室的学生
 def find_not_in_dorm(df):
@@ -21,11 +37,17 @@ def generate_not_in_dorm_list(df):
         teacher_name = row['teacher_name']
         class_name = row['class_name']
         member_name = row['member_name']
+        status = row['status']  # 获取学生状态
 
         if teacher_name not in teacher_data:
             teacher_data[teacher_name] = {}
         if class_name not in teacher_data[teacher_name]:
             teacher_data[teacher_name][class_name] = []
+
+        # 如果状态是 'leave'，在名字后添加 '（请假）'
+        if status == 'leave':
+            member_name = f"{member_name}（请假）"
+
         teacher_data[teacher_name][class_name].append(member_name)
     return teacher_data
 
@@ -55,22 +77,24 @@ def generate_word_document(teacher_data, output_file):
 
 # 主函数
 def main():
-    csv_file_path = 'attendance_records.csv'
-    output_file = '女生不在寝室名单.docx'
+    output_file = os.path.join(script_dir, '女生不在寝室名单.docx')
 
-    # 读取数据
-    df = read_csv(csv_file_path)
+    try:
+        # 读取数据
+        df = pd.read_csv(csv_file_path, encoding='utf-8-sig')
 
-    # 找出不在寝室的学生
-    not_in_dorm_df = find_not_in_dorm(df)
+        # 找出不在寝室的学生
+        not_in_dorm_df = find_not_in_dorm(df)
 
-    # 生成不在寝室名单 (使用新的函数)
-    not_in_dorm_list = generate_not_in_dorm_list(not_in_dorm_df)
+        # 生成不在寝室名单
+        not_in_dorm_list = generate_not_in_dorm_list(not_in_dorm_df)
 
-    # 生成 Word 文档 (使用新的函数)
-    generate_word_document(not_in_dorm_list, output_file)
+        # 生成 Word 文档
+        generate_word_document(not_in_dorm_list, output_file)
 
-    print(f"不在寝室名单已生成：{output_file}")
+        print(f"不在寝室名单已生成：{output_file}")
+    except Exception as e:
+        print(f"生成失败：{e}")
 
 if __name__ == "__main__":
     main()
