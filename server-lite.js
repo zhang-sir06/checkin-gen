@@ -175,3 +175,27 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
     console.error('未处理的 Promise 拒绝:', reason);
 });
+
+// 删除选中的考勤记录
+app.post('/api/attendance/delete', (req, res) => {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: '没有选择要删除的记录' });
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const query = `DELETE FROM attendance_records WHERE id IN (${placeholders})`;
+    
+    db.run(query, ids, function(err) {
+        if (err) {
+            console.error('删除记录失败:', err);
+            return res.status(500).json({ error: '删除记录失败' });
+        }
+        res.json({ 
+            success: true, 
+            message: `成功删除 ${this.changes} 条记录`,
+            deletedCount: this.changes
+        });
+    });
+});
