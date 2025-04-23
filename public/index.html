@@ -711,7 +711,7 @@ http://mozilla.org/MPL/2.0/。
                         <h2>${member.member_name}</h2>
                         <div class="class-name">${member.class_name}</div>
                         <div class="status-options" data-member-id="${member.id}">
-                            <div class="status-option status-on-time active" data-status="on-time">
+                            <div class="status-option status-on-time" data-status="on-time">
                                 正常 <span class="checkmark"> ✓</span>
                             </div>
                             <div class="status-option status-absent" data-status="absent">
@@ -722,8 +722,19 @@ http://mozilla.org/MPL/2.0/。
                             </div>
                         </div>
                     `;
+                    const container = memberCard.querySelector('.status-options');
+                    const currentStatus = attendanceStatus[member.id] || 'on-time';
+                    container.querySelectorAll('.status-option')
+                            .forEach(opt => opt.classList.remove('active'));
+                    const toActive = container.querySelector(`.status-option[data-status="${currentStatus}"]`);
+                    if (toActive) toActive.classList.add('active');
+                    
                     memberListDiv.appendChild(memberCard);
-                    attendanceStatus[member.id] = 'on-time'; // 初始化状态
+                    // 只有当 attendanceStatus 中还没有这个成员的记录时，才设默认“正常”：
+                    if (!(member.id in attendanceStatus)) {
+                        attendanceStatus[member.id] = 'on-time';
+                    }
+
                     
                     const statusOptionsContainer = memberCard.querySelector('.status-options');
                     statusOptionsContainer.addEventListener('click', (event) => {
