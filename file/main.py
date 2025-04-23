@@ -63,7 +63,7 @@ def generate_word_document(teacher_data, output_file):
     for teacher_name, class_data in teacher_data.items():
         doc.add_paragraph(f"{teacher_name}老师您好，女生今晚查房不在者如下：", style='SongTi')
         for class_name, member_names in class_data.items():
-            member_names_str = ' '.join(member_names)
+            member_names_str = '、'.join(member_names)
             if class_name.startswith('23'):
                 color = RGBColor(255, 0, 0)  # 红色
             else:
