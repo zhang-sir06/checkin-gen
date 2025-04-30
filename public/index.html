@@ -360,6 +360,16 @@ http://mozilla.org/MPL/2.0/。
             max-width: 1200px;
             margin: 0 auto 20px;
         }
+        @keyframes slideFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
         .dorm-button {
             padding: 10px;
@@ -370,6 +380,9 @@ http://mozilla.org/MPL/2.0/。
             transition: all 0.2s;
             text-align: center;
             font-size: 14px;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: slideFadeIn 0.15s ease forwards;
         }
 
         .dorm-button:hover {
@@ -629,12 +642,16 @@ http://mozilla.org/MPL/2.0/。
             });
             
             // 生成寝室按钮
-            currentDorms.forEach(dorm => {
+            currentDorms.forEach((dorm, index) => {
                 const button = document.createElement('div');
                 button.className = 'dorm-button';
                 button.textContent = dorm.dormitory_number.split('#')[1]; // 只显示房间号
                 button.title = dorm.dormitory_number; // 保存完整寝室号
                 button.onclick = () => selectDormitory(dorm.dormitory_number); // 点击时选择寝室
+                
+                // 添加交错动画延迟
+                button.style.animationDelay = `${index * 0.05}s`;
+                
                 container.appendChild(button);
             });
         }
